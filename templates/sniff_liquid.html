@@ -1,0 +1,189 @@
+{{ template "top" . }}
+<div class="main-div">
+    <form onsubmit="return false;">
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_chain">Chain</span>
+        <select class="form-select" id="chain" aria-describedby="span_chain" disabled>
+            <option value="BSC" selected>BSC</option>
+            <option value="POLYGON">Polygon</option>
+        </select>
+    </div>
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_dex">DEX</span>
+        <select class="form-select" id="dex" aria-describedby="span_dex">
+            <option value="PANCAKE" selected>PancakeSwap</option>
+            <option value="APESWAP">ApeSwap</option>
+        </select>
+    </div>
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_token_address">token_address</span>
+        <input type="text" class="form-control" id="token_address" aria-describedby="span_token_address" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_buy_amount">buy_amount ($)</span>
+        <input type="text" class="form-control" id="buy_amount" aria-describedby="span_buy_amount" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_buy_gas_fee">buy_gas_fee</span>
+        <input type="number" class="form-control" id="buy_gas_fee" aria-describedby="span_buy_gas_fee" value="5" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_buy_slippage">buy_slippage (%)</span>
+        <input type="number" class="form-control" id="buy_slippage" aria-describedby="span_buy_slippage" value="50" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_init_accept_price">init_accept_price ($)</span>
+        <input type="text" class="form-control" id="init_accept_price" aria-describedby="span_init_accept_price" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_sell_gas_fee">sell_gas_fee</span>
+        <input type="number" class="form-control" id="sell_gas_fee" aria-describedby="span_sell_gas_fee" value="5" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_sell_slippage">sell_slippage ($)</span>
+        <input type="number" class="form-control" id="sell_slippage" aria-describedby="span_sell_slippage" value="30" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_start_datetime">start_time (UTC)</span>
+        <input type="datetime-local" class="form-control" id="start_datetime" aria-describedby="span_start_datetime">
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_duration">duration (minutes)</span>
+        <input type="number" class="form-control" id="duration" aria-describedby="span_duration" value="30" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_sniff_password">sniff_password</span>
+        <input type="password" class="form-control" id="sniff_password" aria-describedby="span_sniff_password" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <button type="submit" class="btn btn-primary btn-block" id="submit-button">Sniff</button>
+    </div>
+    </form>
+    <div class="input-group mb-3">
+        <button type="submit" class="btn btn-primary btn-block" id="flush-db">FlushDB</button>
+        <span class="input-group-text" id="flush_data"></span>
+    </div>
+    
+    <div id="tasks_data"></div>
+</div>
+<script>
+    $(document).ready(function(){
+        $("#flush-db").click(function(){
+            post_data = {
+                "clean_password": $('#sniff_password').val()
+            };
+            console.log(post_data);
+            $.ajax({
+                url: "/execute_clean",
+                type: "POST",
+                dataType: 'json',
+                contentType: 'application/json',
+                accepts: 'application/json',
+                data: JSON.stringify(post_data),
+                success: function (data) {
+                    console.log(data);
+                    $('#flush_data').html(data['result']);
+                },
+            });
+        });
+        get_tasks_status();
+        $("#submit-button").click(function(){
+            post_data = {
+                "chain": $('#chain').val(),
+                "dex": $('#dex').val(),
+                "token_address": $('#token_address').val(),
+                "buy_amount": $('#buy_amount').val(), 
+                "buy_gas_fee": $('#buy_gas_fee').val(), 
+                "buy_slippage": $('#buy_slippage').val(), 
+                "init_accept_price": $('#init_accept_price').val(), 
+                "sell_gas_fee": $('#sell_gas_fee').val(), 
+                "sell_slippage": $('#sell_slippage').val(), 
+                "start_datetime": $('#start_datetime').val(),
+                "duration": $('#duration').val(),
+                "sniff_password": $('#sniff_password').val()
+            };
+            console.log(post_data);
+            $.ajax({
+                url: "/sniff_liquid",
+                type: "POST",
+                dataType: 'json',
+                contentType: 'application/json',
+                accepts: 'application/json',
+                data: JSON.stringify(post_data),
+                success: function (data) {
+                    console.log(data);
+                },
+            });
+        });
+    });
+    function get_tasks_status() {
+        $.ajax({
+            url: "/sniff_tasks",
+            type: "GET",
+            dataType: 'json',
+            contentType: 'application/json',
+            success: function (data) {
+                handle_tasks_data(data)
+                setTimeout(get_tasks_status, 1000);
+            },
+        });
+    }
+    var previous_html = '';
+    function handle_tasks_data(data) {
+        var html_rs = '';
+        if (data['tasks'].length == 0) {
+            html_rs = "No running tasks";
+        }
+        else {
+            html_rs = "<div class='table-responsive'><table class='table table-sm'>\
+                            <thead class='table-primary'>\
+                                <tr>\
+                                    <th scope='col'>Token</th>\
+                                    <th scope='col'>Buy Amount</th>\
+                                    <th scope='col'>BuyTx</th>\
+                                    <th scope='col'>SellTx</th>\
+                                    <th scope='col'>Status</th>\
+                                </tr>\
+                            </thead>\
+                        <tbody>"
+            data['tasks'].forEach(element => {
+                console.log(element);
+                var html_buytx = "N/A";
+                if (element['BuyTx'] !== '') {
+                    html_buytx = "<a href='" + element['BuyTx']+ "' target='_blank'>Link</a>";
+                }
+                var html_selltx = "N/A";
+                if (element['SellTx'] !== '') {
+                    html_selltx = "<a href='" + element['SellTx']+ "' target='_blank'>Link</a>";
+                }
+                html_rs += "\
+                    <tr>\
+                        <th scope='row'>" + element['TokenAddress'] +"</th>\
+                        <td>" + element['BuyAmount'] +"</td>\
+                        <td>" + html_buytx +"</td>\
+                        <td>" + html_selltx +"</td>\
+                        <td>" + element['ProcessStatus'] +"</td>\
+                    </tr>\
+                    "
+            });
+            html_rs += "</tbody></table></div>"
+            
+        }
+        if (previous_html != html_rs) {
+            previous_html = html_rs;
+            $('#tasks_data').html(html_rs);
+        }
+    }
+
+</script>
+{{ template "bottom" . }}

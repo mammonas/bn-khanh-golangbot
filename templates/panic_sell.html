@@ -1,0 +1,190 @@
+{{ template "top" . }}
+<div class="main-div">
+    <form onsubmit="return false;">
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_chain">Chain</span>
+        <select class="form-select" id="chain" aria-describedby="span_chain" disabled>
+            <option value="BSC" selected>BSC</option>
+            <option value="POLYGON">Polygon</option>
+        </select>
+    </div>
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_dex">DEX</span>
+        <select class="form-select" id="dex" aria-describedby="span_dex">
+            <option value="PANCAKE" selected>PancakeSwap</option>
+            <option value="APESWAP">ApeSwap</option>
+        </select>
+    </div>
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_token_address">token_address</span>
+        <input type="text" class="form-control" id="token_address" aria-describedby="span_token_address" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_sell_gas_fee">sell_gas_fee</span>
+        <input type="number" class="form-control" id="sell_gas_fee" aria-describedby="span_sell_gas_fee" value="5" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_start_datetime">start_time (UTC)</span>
+        <input type="datetime-local" class="form-control" id="start_datetime" aria-describedby="span_start_datetime">
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_duration">duration (minutes)</span>
+        <input type="number" class="form-control" id="duration" aria-describedby="span_duration" value="30" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="span_sell_password">password</span>
+        <input type="password" class="form-control" id="sell_password" aria-describedby="span_sell_password" required>
+    </div>
+
+    <div class="input-group mb-3">
+        <button type="submit" class="btn btn-primary btn-block" id="approve-button">Approve</button>&nbsp;&nbsp;
+        <button type="submit" class="btn btn-primary btn-block" id="submit-button">Sell</button>
+    </div>
+    </form>
+    <div class="input-group mb-3">
+        <button type="submit" class="btn btn-primary btn-block" id="flush-db">FlushDB</button>
+        <span class="input-group-text" id="flush_data"></span>
+    </div>
+    
+    <div id="tasks_data"></div>
+</div>
+<script>
+    $(document).ready(function(){
+        $("#flush-db").click(function(){
+            post_data = {
+                "clean_password": $('#sell_password').val()
+            };
+            console.log(post_data);
+            $.ajax({
+                url: "/execute_clean",
+                type: "POST",
+                dataType: 'json',
+                contentType: 'application/json',
+                accepts: 'application/json',
+                data: JSON.stringify(post_data),
+                success: function (data) {
+                    console.log(data);
+                    $('#flush_data').html(data['result']);
+                },
+            });
+        });
+        get_tasks_status();
+        $("#approve-button").click(function(){
+            post_data = {
+                "chain": $('#chain').val(),
+                "dex": $('#dex').val(),
+                "token_address": $('#token_address').val(),
+                "sell_password": $('#sell_password').val()
+            };
+            console.log(post_data);
+            $.ajax({
+                url: "/approve_spending",
+                type: "POST",
+                dataType: 'json',
+                contentType: 'application/json',
+                accepts: 'application/json',
+                data: JSON.stringify(post_data),
+                success: function (data) {
+                    console.log(data);
+                    $('#flush_data').html(data['approve_result']);
+                },
+            });
+        });
+        $("#submit-button").click(function(){
+            post_data = {
+                "chain": $('#chain').val(),
+                "dex": $('#dex').val(),
+                "token_address": $('#token_address').val(),
+                "sell_gas_fee": $('#sell_gas_fee').val(),
+                "start_datetime": $('#start_datetime').val(),
+                "duration": $('#duration').val(),
+                "sell_password": $('#sell_password').val()
+            };
+            console.log(post_data);
+            $.ajax({
+                url: "/panic_sell",
+                type: "POST",
+                dataType: 'json',
+                contentType: 'application/json',
+                accepts: 'application/json',
+                data: JSON.stringify(post_data),
+                success: function (data) {
+                    console.log(data);
+                    $('#flush_data').html(data['sell_result']);
+                },
+            });
+        });
+    });
+    function get_tasks_status() {
+        $.ajax({
+            url: "/approve_sell_task",
+            type: "GET",
+            dataType: 'json',
+            contentType: 'application/json',
+            success: function (data) {
+                handle_tasks_data(data)
+                setTimeout(get_tasks_status, 1000);
+            },
+        });
+    }
+    var previous_html = '';
+    function handle_tasks_data(data) {
+        var html_rs = '';
+        if (data['tasks'].length == 0) {
+            html_rs = "No running tasks";
+        }
+        else {
+            html_rs = "<div class='table-responsive'><table class='table table-sm'>\
+                            <thead class='table-primary'>\
+                                <tr>\
+                                    <th scope='col'>Token</th>\
+                                    <th scope='col'>ApproveStatus</th>\
+                                    <th scope='col'>ApproveTx</th>\
+                                    <th scope='col'>SellStatus</th>\
+                                    <th scope='col'>SellTx</th>\
+                                </tr>\
+                            </thead>\
+                        <tbody>"
+            data['tasks'].forEach(element => {
+                console.log(element);
+                var html_approvestatus = "N/A";
+                if (element['ApproveStatus'] !== '') {
+                    html_approvestatus = element['ApproveStatus'];
+                }
+                var html_approvetx = "N/A";
+                if (element['ApproveTx'] !== '') {
+                    html_approvetx = "<a href='" + element['ApproveTx']+ "' target='_blank'>Link</a>";
+                }
+                var html_sellstatus = "N/A";
+                if (element['SellStatus'] != null && element['SellTx'] !== '') {
+                    html_sellstatus = element['SellStatus'];
+                }
+                var html_selltx = "N/A";
+                if (element['SellTx'] != null && element['SellTx'] !== '') {
+                    html_selltx = "<a href='" + element['SellTx']+ "' target='_blank'>Link</a>";
+                }
+                html_rs += "\
+                    <tr>\
+                        <th scope='row'>" + element['TokenAddress'] +"</th>\
+                        <td>" + html_approvestatus +"</td>\
+                        <td>" + html_approvetx +"</td>\
+                        <td>" + html_sellstatus +"</td>\
+                        <td>" + html_selltx +"</td>\
+                    </tr>\
+                    "
+            });
+            html_rs += "</tbody></table></div>"
+            
+        }
+        if (previous_html != html_rs) {
+            previous_html = html_rs;
+            $('#tasks_data').html(html_rs);
+        }
+    }
+
+</script>
+{{ template "bottom" . }}
